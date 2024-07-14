@@ -2,6 +2,7 @@ package com.tushar.rest.webservices.restful_web_services.user;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -12,14 +13,19 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.tushar.rest.webservices.restful_web_services.jpa.PostRepository;
+import com.tushar.rest.webservices.restful_web_services.jpa.UserRepository;
+
 import jakarta.validation.Valid;
 
 @RestController
 public class UserJpaResource {
-    private UserDAO service;
+    private UserRepository service;
+    private PostRepository postService;
 
-    public UserJpaResource(UserDAO userDaoService) {
+    public UserJpaResource(UserRepository userDaoService, PostRepository postService) {
         this.service = userDaoService;
+        this.postService = postService;
     }
 
     @GetMapping("/users")
@@ -28,10 +34,10 @@ public class UserJpaResource {
     }
 
     @GetMapping("/users/{id}")
-    public User retrieveUser(@PathVariable int id) {
-        User foundUser = service.findOne(id);
-        if (foundUser == null) {
-            throw new UserNotFoundException("id-" + id);
+    public Optional<User> retrieveUser(@PathVariable int id) {
+        Optional<User> foundUser = service.findById(id);
+        if (foundUser.isEmpty()) {
+            throw new UserNotFoundException("User not Found: id-" + id);
         }
         return foundUser;
     }
@@ -42,6 +48,15 @@ public class UserJpaResource {
 
     }
 
+    @GetMapping("/users/{id}/posts")
+    public List<Post> retrievePostForUser(@PathVariable int id) {
+        Optional<User> foundUser = service.findById(id);
+        if (foundUser.isEmpty()) {
+            throw new UserNotFoundException("User not Found: id-" + id);
+        }
+        return foundUser.get().getPosts();
+    }
+
     @PostMapping("/users")
     public ResponseEntity<Object> createUser(@Valid @RequestBody User user) {
         User savedUser = service.save(user);
@@ -50,4 +65,25 @@ public class UserJpaResource {
         return ResponseEntity.created(location).build();
     }
 
+    @PostMapping("/users/{id}/posts")
+    public ResponseEntity<Object> createPostForUser(@PathVariable Integer id, @Valid @RequestBody Post post) {
+        Optional<User> user = service.findById(id);
+        if (user.isEmpty()) {
+            throw new UserNotFoundException("User not Found: id-" + id);
+        }
+        post.setUser(user.get());
+        Post savedPost = postService.save(post);
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(savedPost.getId())
+                .toUri();
+        return ResponseEntity.created(location).build();
+    }
+
+    @GetMapping("/posts/{id}")
+    public Optional<Post> getSinglePost(@PathVariable Integer id) {
+        Optional<Post> post = postService.findById(id);
+        if (post.isEmpty()) {
+            throw new UserNotFoundException("Post not Found: id-" + id);
+        }
+        return post;
+    }
 }
